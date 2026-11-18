@@ -1,12 +1,22 @@
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
-import { findCraftsByProductName, getItemName } from "../lib/tarkov-api.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+} from "discord.js";
+import {
+  findCraftsByProductName,
+  findItemsByName,
+  getItemName,
+  getStationName,
+} from "../lib/tarkov-api.js";
 import type { Craft, ItemRequirement } from "../lib/tarkov-types.js";
 
 export const data = new SlashCommandBuilder()
   .setName("craft")
   .setDescription("List items needed to craft an item")
   .addStringOption((option) =>
-    option.setName("item").setDescription("Item to craft").setRequired(true),
+    option.setName("item").setDescription("Item to craft").setRequired(true).setAutocomplete(true),
   );
 
 async function formatRequirements(requirements: ItemRequirement[]): Promise<string> {
@@ -16,23 +26,23 @@ async function formatRequirements(requirements: ItemRequirement[]): Promise<stri
     requirements.map(async (req) => {
       const name = await getItemName(req.item);
       const tool = req.attributes.tool ? " (tool, not consumed)" : "";
-      return `${req.count}x ${name}${tool}`;
+      return `- ${req.count}x ${name}${tool}`;
     }),
   );
   return lines.join("\n");
 }
 
 async function buildEmbed(craft: Craft): Promise<EmbedBuilder> {
-  const productName = await getItemName(craft.productItem.item);
+  const [productName, stationName] = await Promise.all([
+    getItemName(craft.productItem.item),
+    getStationName(craft.station),
+  ]);
   const hours = (craft.duration / 3600).toFixed(1);
 
   return new EmbedBuilder()
-    .setTitle(`Craft: ${productName}`)
-    .addFields(
-      { name: "Produces", value: `${craft.productItem.count}x ${productName}`, inline: true },
-      { name: "Duration", value: `${hours}h`, inline: true },
-      { name: "Required items", value: await formatRequirements(craft.requiredItems) },
-    );
+    .setTitle(`Craft: ${craft.productItem.count}x ${productName}`)
+    .setDescription(`${stationName} Lvl ${craft.level}+ | ${hours}h`)
+    .addFields({ name: "Required items", value: await formatRequirements(craft.requiredItems) });
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -48,4 +58,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const embeds = await Promise.all(crafts.slice(0, 3).map(buildEmbed));
   await interaction.editReply({ embeds });
+}
+
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused();
+  const items = await findItemsByName(focused);
+  await interaction.respond(
+    items.slice(0, 25).map((item) => ({ name: item.name, value: item.name })),
+  );
 }

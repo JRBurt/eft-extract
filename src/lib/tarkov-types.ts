@@ -53,3 +53,35 @@ export interface Craft {
   requiredItems: ItemRequirement[];
   productItem: ItemRequirement;
 }
+
+export interface TaskObjective {
+  id: string;
+  type: string;
+  description: string;
+  optional: boolean;
+  count?: number;
+  items?: string[];
+  questItem?: string;
+  maps?: string[];
+  requiredKeys?: string[][];
+  foundInRaid?: boolean;
+}
+
+export interface Task {
+  id: string;
+  name: string;
+  trader: string;
+  minPlayerLevel: number | null;
+  objectives: TaskObjective[];
+}
+
+export interface TarkovMap {
+  id: string;
+  name: string;
+  normalizedName: string;
+}
+
+export interface QuestItem {
+  id: string;
+  name: string;
+}

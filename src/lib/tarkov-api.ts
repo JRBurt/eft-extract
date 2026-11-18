@@ -1,4 +1,13 @@
-import type { Craft, HideoutStation, TarkovItem, TarkovTrader } from "./tarkov-types.js";
+import { closest } from "fastest-levenshtein";
+import type {
+  Craft,
+  HideoutStation,
+  QuestItem,
+  Task,
+  TarkovItem,
+  TarkovMap,
+  TarkovTrader,
+} from "./tarkov-types.js";
 
 const JSON_API_URL = "https://json.tarkov.dev";
 const GAME_MODE = "pve";
@@ -55,6 +64,11 @@ let itemsCache: Promise<Record<string, TarkovItem>> | null = null;
 let tradersCache: Promise<Record<string, TarkovTrader>> | null = null;
 let hideoutCache: Promise<Record<string, HideoutStation>> | null = null;
 let craftsCache: Promise<Craft[]> | null = null;
+let tasksBundleCache: Promise<{
+  tasks: Record<string, Task>;
+  questItems: Record<string, QuestItem>;
+}> | null = null;
+let mapsCache: Promise<Record<string, TarkovMap>> | null = null;
 
 function loadItems(): Promise<Record<string, TarkovItem>> {
   // The items resource bundles several related collections (items, fleaMarket,
@@ -90,6 +104,58 @@ function loadCrafts(): Promise<Craft[]> {
     (envelope) => envelope.data,
   );
   return craftsCache;
+}
+
+interface TasksBundle {
+  tasks: Record<string, Task>;
+  questItems: Record<string, QuestItem>;
+}
+
+function loadTasksBundle(): Promise<TasksBundle> {
+  // Same bundling as items: tasks/questItems/achievements/prestige share one payload,
+  // and questItems need their own names resolved (e.g. for findQuestItem objectives).
+  tasksBundleCache ??= (async () => {
+    const path = `${GAME_MODE}/tasks`;
+    const [base, locale] = await Promise.all([
+      fetchJson<JsonApiEnvelope<{ tasks: Record<string, Task>; questItems: Record<string, QuestItem> }>>(
+        path,
+      ),
+      fetchJson<JsonApiEnvelope<LocaleMap>>(`${path}_en`),
+    ]);
+    applyTranslations(base.data.tasks, locale.data, ["name"]);
+    applyTranslations(base.data.questItems, locale.data, ["name"]);
+    for (const task of Object.values(base.data.tasks)) {
+      applyTranslations(
+        Object.fromEntries(task.objectives.map((objective) => [objective.id, objective])),
+        locale.data,
+        ["description"],
+      );
+    }
+    return base.data;
+  })();
+  return tasksBundleCache;
+}
+
+async function loadTasks(): Promise<Record<string, Task>> {
+  return (await loadTasksBundle()).tasks;
+}
+
+async function loadQuestItems(): Promise<Record<string, QuestItem>> {
+  return (await loadTasksBundle()).questItems;
+}
+
+function loadMaps(): Promise<Record<string, TarkovMap>> {
+  mapsCache ??= fetchTranslatedResource<TarkovMap>(
+    `${GAME_MODE}/maps`,
+    ["name"],
+    (data) => (data as { maps: Record<string, TarkovMap> }).maps,
+  );
+  return mapsCache;
+}
+
+export async function getStationName(stationId: string): Promise<string> {
+  const stations = await loadHideoutStations();
+  return stations[stationId]?.name ?? "Unknown station";
 }
 
 export async function findItemsByName(query: string): Promise<TarkovItem[]> {
@@ -129,4 +195,33 @@ export async function findCraftsByProductName(query: string): Promise<Craft[]> {
     const product = items[craft.productItem.item];
     return product && product.name.toLowerCase().includes(lowerQuery);
   });
+}
+
+export async function findTaskByFuzzyName(query: string): Promise<Task | null> {
+  const tasks = await loadTasks();
+  const taskList = Object.values(tasks);
+  if (taskList.length === 0) return null;
+
+  const lowerNames = taskList.map((task) => task.name.toLowerCase());
+  const bestMatch = closest(query.toLowerCase(), lowerNames);
+  return taskList[lowerNames.indexOf(bestMatch)] ?? null;
+}
+
+export async function getMapName(mapId: string): Promise<string> {
+  const maps = await loadMaps();
+  return maps[mapId]?.name ?? "Unknown map";
+}
+
+export async function getQuestItemName(questItemId: string): Promise<string> {
+  const questItems = await loadQuestItems();
+  return questItems[questItemId]?.name ?? "Unknown quest item";
+}
+
+export async function searchTaskNames(query: string, limit = 25): Promise<string[]> {
+  const tasks = await loadTasks();
+  const lowerQuery = query.toLowerCase();
+  return Object.values(tasks)
+    .filter((task) => task.name.toLowerCase().includes(lowerQuery))
+    .slice(0, limit)
+    .map((task) => task.name);
 }

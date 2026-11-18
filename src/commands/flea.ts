@@ -1,4 +1,9 @@
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+} from "discord.js";
 import { findItemsByName, getTraderName } from "../lib/tarkov-api.js";
 import type { TarkovItem } from "../lib/tarkov-types.js";
 
@@ -9,7 +14,8 @@ export const data = new SlashCommandBuilder()
     option
       .setName("item")
       .setDescription("Item name")
-      .setRequired(true),
+      .setRequired(true)
+      .setAutocomplete(true),
   );
 
 function pickBestMatch(items: TarkovItem[], query: string): TarkovItem {
@@ -25,14 +31,16 @@ function pickBestMatch(items: TarkovItem[], query: string): TarkovItem {
 async function buildEmbed(item: TarkovItem): Promise<EmbedBuilder> {
   const bestOffer = [...item.sellToTrader].sort((a, b) => b.priceRUB - a.priceRUB)[0];
 
-  const embed = new EmbedBuilder()
-    .setTitle(item.name)
-    .addFields(
-      { name: "Avg 24h price", value: formatRUB(item.avg24hPrice), inline: true },
-      { name: "Last low price", value: formatRUB(item.lastLowPrice), inline: true },
-      { name: "24h range", value: `${formatRUB(item.low24hPrice)} - ${formatRUB(item.high24hPrice)}`, inline: true },
-      { name: "48h change", value: formatChange(item.changeLast48h, item.changeLast48hPercent), inline: true },
-    );
+  const priceLine =
+    `${formatNum(item.avg24hPrice)} avg | ` +
+    `Range ${formatNum(item.low24hPrice)}-${formatNum(item.high24hPrice)} | ` +
+    `Last low ${formatNum(item.lastLowPrice)} RUB`;
+
+  const embed = new EmbedBuilder().setTitle(item.name).setDescription(priceLine).addFields({
+    name: "48h change",
+    value: formatChange(item.changeLast48h, item.changeLast48hPercent),
+    inline: true,
+  });
 
   if (bestOffer) {
     const traderName = await getTraderName(bestOffer.trader);
@@ -46,14 +54,14 @@ async function buildEmbed(item: TarkovItem): Promise<EmbedBuilder> {
   return embed;
 }
 
-function formatRUB(value: number | null | undefined): string {
-  return value == null ? "N/A" : `${value.toLocaleString()} RUB`;
+function formatNum(value: number | null | undefined): string {
+  return value == null ? "N/A" : value.toLocaleString();
 }
 
 function formatChange(absolute: number | null | undefined, percent: number | null | undefined): string {
   if (absolute == null || percent == null) return "N/A";
   const sign = absolute >= 0 ? "+" : "";
-  return `${sign}${absolute.toLocaleString()} RUB (${sign}${percent.toFixed(1)}%)`;
+  return `${sign}${absolute.toLocaleString()} (${sign}${percent.toFixed(1)}%)`;
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -69,4 +77,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const match = pickBestMatch(items, query);
   await interaction.editReply({ embeds: [await buildEmbed(match)] });
+}
+
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused();
+  const items = await findItemsByName(focused);
+  await interaction.respond(
+    items.slice(0, 25).map((item) => ({ name: item.name, value: item.name })),
+  );
 }

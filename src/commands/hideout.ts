@@ -1,4 +1,9 @@
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+} from "discord.js";
 import { findHideoutStationsByName, getItemName } from "../lib/tarkov-api.js";
 import type { HideoutStation, ItemRequirement } from "../lib/tarkov-types.js";
 
@@ -6,7 +11,7 @@ export const data = new SlashCommandBuilder()
   .setName("hideout")
   .setDescription("List items needed to build a hideout station level")
   .addStringOption((option) =>
-    option.setName("station").setDescription("Station name").setRequired(true),
+    option.setName("station").setDescription("Station name").setRequired(true).setAutocomplete(true),
   )
   .addIntegerOption((option) =>
     option
@@ -32,8 +37,8 @@ async function formatRequirements(requirements: ItemRequirement[]): Promise<stri
   const lines = await Promise.all(
     requirements.map(async (req) => {
       const name = await getItemName(req.item);
-      const fir = req.attributes.foundInRaid ? " (FIR)" : "";
-      return `${req.count}x ${name}${fir}`;
+      const fir = req.attributes.foundInRaid ? " FIR ☑️" : "";
+      return `- ${req.count}x ${name}${fir}`;
     }),
   );
   return lines.join("\n");
@@ -63,11 +68,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`${station.name} — Level ${level}`)
-    .addFields({
-      name: "Items needed",
-      value: await formatRequirements(levelData.itemRequirements),
-    });
+    .setTitle(`${station.name} - Level ${level}`)
+    .setDescription(await formatRequirements(levelData.itemRequirements));
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused();
+  const stations = await findHideoutStationsByName(focused);
+  await interaction.respond(
+    stations.slice(0, 25).map((station) => ({ name: station.name, value: station.name })),
+  );
 }
