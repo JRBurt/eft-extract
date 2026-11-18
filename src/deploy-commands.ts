@@ -4,6 +4,7 @@ import { data as fleaCommand } from "./commands/flea.js";
 import { data as hideoutCommand } from "./commands/hideout.js";
 import { data as craftCommand } from "./commands/craft.js";
 import { data as questCommand } from "./commands/quest.js";
+import { data as bossCommand } from "./commands/boss.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -17,9 +18,13 @@ const token = requireEnv("DISCORD_TOKEN");
 const clientId = requireEnv("DISCORD_CLIENT_ID");
 const guildId = requireEnv("DISCORD_GUILD_ID");
 
-const commands = [fleaCommand, hideoutCommand, craftCommand, questCommand].map((command) =>
-  command.toJSON(),
-);
+const commands = [
+  fleaCommand,
+  hideoutCommand,
+  craftCommand,
+  questCommand,
+  bossCommand,
+].map((command) => command.toJSON());
 
 const rest = new REST().setToken(token);
 

@@ -10,6 +10,7 @@ import * as flea from "./commands/flea.js";
 import * as hideout from "./commands/hideout.js";
 import * as craft from "./commands/craft.js";
 import * as quest from "./commands/quest.js";
+import * as boss from "./commands/boss.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -26,6 +27,7 @@ const commands = new Map<string, Command>([
   [hideout.data.name, hideout],
   [craft.data.name, craft],
   [quest.data.name, quest],
+  [boss.data.name, boss],
 ]);
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });

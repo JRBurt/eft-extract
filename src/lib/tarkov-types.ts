@@ -75,7 +75,19 @@ export interface Task {
   objectives: TaskObjective[];
 }
 
+export interface BossSpawn {
+  spawnChance: number;
+  mob: string;
+}
+
 export interface TarkovMap {
+  id: string;
+  name: string;
+  normalizedName: string;
+  bosses: BossSpawn[];
+}
+
+export interface Mob {
   id: string;
   name: string;
   normalizedName: string;

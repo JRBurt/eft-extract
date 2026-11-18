@@ -2,6 +2,7 @@ import { closest } from "fastest-levenshtein";
 import type {
   Craft,
   HideoutStation,
+  Mob,
   QuestItem,
   Task,
   TarkovItem,
@@ -68,7 +69,10 @@ let tasksBundleCache: Promise<{
   tasks: Record<string, Task>;
   questItems: Record<string, QuestItem>;
 }> | null = null;
-let mapsCache: Promise<Record<string, TarkovMap>> | null = null;
+let mapsBundleCache: Promise<{
+  maps: Record<string, TarkovMap>;
+  mobs: Record<string, Mob>;
+}> | null = null;
 
 function loadItems(): Promise<Record<string, TarkovItem>> {
   // The items resource bundles several related collections (items, fleaMarket,
@@ -144,13 +148,30 @@ async function loadQuestItems(): Promise<Record<string, QuestItem>> {
   return (await loadTasksBundle()).questItems;
 }
 
-function loadMaps(): Promise<Record<string, TarkovMap>> {
-  mapsCache ??= fetchTranslatedResource<TarkovMap>(
-    `${GAME_MODE}/maps`,
-    ["name"],
-    (data) => (data as { maps: Record<string, TarkovMap> }).maps,
-  );
-  return mapsCache;
+function loadMapsBundle(): Promise<{ maps: Record<string, TarkovMap>; mobs: Record<string, Mob> }> {
+  // Maps and mobs (boss/enemy definitions) share one payload; bosses[].mob on a
+  // map entry is a key into mobs, so both need resolving from the same locale file.
+  mapsBundleCache ??= (async () => {
+    const path = `${GAME_MODE}/maps`;
+    const [base, locale] = await Promise.all([
+      fetchJson<JsonApiEnvelope<{ maps: Record<string, TarkovMap>; mobs: Record<string, Mob> }>>(
+        path,
+      ),
+      fetchJson<JsonApiEnvelope<LocaleMap>>(`${path}_en`),
+    ]);
+    applyTranslations(base.data.maps, locale.data, ["name"]);
+    applyTranslations(base.data.mobs, locale.data, ["name"]);
+    return base.data;
+  })();
+  return mapsBundleCache;
+}
+
+async function loadMaps(): Promise<Record<string, TarkovMap>> {
+  return (await loadMapsBundle()).maps;
+}
+
+async function loadMobs(): Promise<Record<string, Mob>> {
+  return (await loadMapsBundle()).mobs;
 }
 
 export async function getStationName(stationId: string): Promise<string> {
@@ -215,6 +236,21 @@ export async function getMapName(mapId: string): Promise<string> {
 export async function getQuestItemName(questItemId: string): Promise<string> {
   const questItems = await loadQuestItems();
   return questItems[questItemId]?.name ?? "Unknown quest item";
+}
+
+export async function findMapsByName(query: string): Promise<TarkovMap[]> {
+  const maps = await loadMaps();
+  const lowerQuery = query.toLowerCase();
+  return Object.values(maps).filter(
+    (map) =>
+      map.name.toLowerCase().includes(lowerQuery) ||
+      map.normalizedName.toLowerCase().includes(lowerQuery),
+  );
+}
+
+export async function getMobName(mobId: string): Promise<string> {
+  const mobs = await loadMobs();
+  return mobs[mobId]?.name ?? mobId;
 }
 
 export async function searchTaskNames(query: string, limit = 25): Promise<string[]> {
