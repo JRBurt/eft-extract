@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+data/hideout-levels.json
+scratch/
+configs.json
+.DS_Store
