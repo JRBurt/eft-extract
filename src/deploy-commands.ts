@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { REST, Routes } from "discord.js";
 import { data as fleaCommand } from "./commands/flea.js";
+import { data as hideoutCommand } from "./commands/hideout.js";
+import { data as craftCommand } from "./commands/craft.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -14,7 +16,9 @@ const token = requireEnv("DISCORD_TOKEN");
 const clientId = requireEnv("DISCORD_CLIENT_ID");
 const guildId = requireEnv("DISCORD_GUILD_ID");
 
-const commands = [fleaCommand].map((command) => command.toJSON());
+const commands = [fleaCommand, hideoutCommand, craftCommand].map((command) =>
+  command.toJSON(),
+);
 
 const rest = new REST().setToken(token);
 

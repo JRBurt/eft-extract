@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { Client, Events, GatewayIntentBits, ChatInputCommandInteraction } from "discord.js";
 import * as flea from "./commands/flea.js";
+import * as hideout from "./commands/hideout.js";
+import * as craft from "./commands/craft.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -9,6 +11,8 @@ if (!token) {
 
 const commands = new Map<string, { execute(interaction: ChatInputCommandInteraction): Promise<void> }>([
   [flea.data.name, flea],
+  [hideout.data.name, hideout],
+  [craft.data.name, craft],
 ]);
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });

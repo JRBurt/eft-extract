@@ -24,3 +24,32 @@ export interface TarkovTrader {
   name: string;
   normalizedName: string;
 }
+
+export interface ItemRequirement {
+  item: string;
+  count: number;
+  attributes: { foundInRaid?: boolean; tool?: boolean };
+}
+
+export interface HideoutLevel {
+  id: string;
+  level: number;
+  constructionTime: number;
+  itemRequirements: ItemRequirement[];
+}
+
+export interface HideoutStation {
+  id: string;
+  name: string;
+  normalizedName: string;
+  levels: HideoutLevel[];
+}
+
+export interface Craft {
+  id: string;
+  station: string;
+  level: number;
+  duration: number;
+  requiredItems: ItemRequirement[];
+  productItem: ItemRequirement;
+}

@@ -1,4 +1,4 @@
-import type { TarkovItem, TarkovTrader } from "./tarkov-types.js";
+import type { Craft, HideoutStation, TarkovItem, TarkovTrader } from "./tarkov-types.js";
 
 const JSON_API_URL = "https://json.tarkov.dev";
 const GAME_MODE = "pve";
@@ -53,6 +53,8 @@ async function fetchTranslatedResource<T>(
 
 let itemsCache: Promise<Record<string, TarkovItem>> | null = null;
 let tradersCache: Promise<Record<string, TarkovTrader>> | null = null;
+let hideoutCache: Promise<Record<string, HideoutStation>> | null = null;
+let craftsCache: Promise<Craft[]> | null = null;
 
 function loadItems(): Promise<Record<string, TarkovItem>> {
   // The items resource bundles several related collections (items, fleaMarket,
@@ -74,6 +76,22 @@ function loadTraders(): Promise<Record<string, TarkovTrader>> {
   return tradersCache;
 }
 
+function loadHideoutStations(): Promise<Record<string, HideoutStation>> {
+  hideoutCache ??= fetchTranslatedResource<HideoutStation>(
+    `${GAME_MODE}/hideout`,
+    ["name"],
+    (data) => data as Record<string, HideoutStation>,
+  );
+  return hideoutCache;
+}
+
+function loadCrafts(): Promise<Craft[]> {
+  craftsCache ??= fetchJson<JsonApiEnvelope<Craft[]>>(`${GAME_MODE}/crafts`).then(
+    (envelope) => envelope.data,
+  );
+  return craftsCache;
+}
+
 export async function findItemsByName(query: string): Promise<TarkovItem[]> {
   const items = await loadItems();
   const lowerQuery = query.toLowerCase();
@@ -87,4 +105,28 @@ export async function findItemsByName(query: string): Promise<TarkovItem[]> {
 export async function getTraderName(traderId: string): Promise<string> {
   const traders = await loadTraders();
   return traders[traderId]?.name ?? "Unknown trader";
+}
+
+export async function getItemName(itemId: string): Promise<string> {
+  const items = await loadItems();
+  return items[itemId]?.name ?? "Unknown item";
+}
+
+export async function findHideoutStationsByName(query: string): Promise<HideoutStation[]> {
+  const stations = await loadHideoutStations();
+  const lowerQuery = query.toLowerCase();
+  return Object.values(stations).filter(
+    (station) =>
+      station.name.toLowerCase().includes(lowerQuery) ||
+      station.normalizedName.toLowerCase().includes(lowerQuery),
+  );
+}
+
+export async function findCraftsByProductName(query: string): Promise<Craft[]> {
+  const [crafts, items] = await Promise.all([loadCrafts(), loadItems()]);
+  const lowerQuery = query.toLowerCase();
+  return crafts.filter((craft) => {
+    const product = items[craft.productItem.item];
+    return product && product.name.toLowerCase().includes(lowerQuery);
+  });
 }
